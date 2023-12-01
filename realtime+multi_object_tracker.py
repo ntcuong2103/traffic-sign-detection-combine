@@ -1,10 +1,15 @@
+from threading import Timer
+from time import sleep
 import cv2
 import  numpy as np
 from ultralytics import YOLO
 import math
 import cv2
 import torch
-from keras.models import load_model
+from tensorflow.keras.models import load_model
+import tensorflow as tf
+# tf.debugging.set_log_device_placement(True)
+
 
 def grayscale(img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -55,7 +60,35 @@ trackers = cv2.legacy.MultiTracker_create()
 label = np.array([],dtype=object)
 fnum = 0    #frame .no
 avgfps = 0
-sampling_rate = 5
+sampling_rate = 10
+
+frame = cap.read()[1]
+fnum += 1
+
+current_frame = frame
+
+frame_height,frame_width = frame.shape[:2]
+
+size = (frame_width, frame_height)
+
+result = cv2.VideoWriter('detection_tracking_result.avi',
+                             cv2.VideoWriter_fourcc(*'MJPG'),
+                             60, size)
+
+is_done = False
+
+def update_writer_task(done):
+    # print('timer run')
+    if done: return
+    result.write(current_frame)
+    capture_timer = Timer(float(1)/60, update_writer_task, args=[is_done])
+    capture_timer.start()
+
+capture_timer = Timer(float(1)/60, update_writer_task, args=[is_done])
+capture_timer.start()
+
+sleep(0.1)
+
 
 while True:
     timer = cv2.getTickCount()  #for fps caculating
@@ -138,13 +171,19 @@ while True:
         avgfps = (avgfps+fps)/2
 
     cv2.putText(frame, 'fps: ' + str(int(avgfps)), (75, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-    cv2.imshow('Frame', frame)
+    # cv2.imshow('Frame', frame)
+    current_frame = frame
+    # print(f'fps: {avgfps}')
 
     if k == ord('q'):
         cap.release()
         cv2.destroyAllWindows()
         break
 
+    # sleep(0.01)
 
+is_done = True
+capture_timer.cancel()
+result.release()
 cap.release()
 cv2.destroyAllWindows()
