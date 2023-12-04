@@ -32,11 +32,10 @@ def preprocess(img):
 
 def normaly(img):
     img = np.asarray(img)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = cv2.resize(img, (32, 32))
-    img = preprocess(img)
-    # plt.imshow(img, cmap = plt.get_cmap('gray'))
-    # plt.show()
-    img = img.reshape(1, 32, 32, 1)
+    # img = img.reshape(heights, widths, 3)
+    img = img / 255
     return img
 
 
@@ -47,12 +46,8 @@ def relu(x):
 # video link: https://drive.google.com/file/d/16PClrGCJGV-aSrjevYHA_htyzg2QC49x/view?usp=sharing
 cap = cv2.VideoCapture("Germany_480p.mp4")  # from video
 # cap = cv2.VideoCapture(0)  #from camera
-model1 = YOLO(
-    "/kaggle/input/models1/Manual yolov8n2.pt"
-)  # load detection model
-model2 = load_model(
-    "/kaggle/input/models1/manual LeNet4 (no pre).h5"
-)  # load classification model
+model1 = YOLO("Manual yolov8n2.pt")  # load detection model
+model2 = load_model("manual LeNet4 (no pre).h5")  # load classification model
 
 ano = [
     "Do not enter",
@@ -107,7 +102,7 @@ trackers = cv2.legacy.MultiTracker_create()
 label = np.array([], dtype=int)
 fnum = 0  # frame .no
 avgfps = 0
-sampling_rate = 10
+sampling_rate = 1
 
 frame = cap.read()[1]
 fnum += 1
@@ -126,7 +121,6 @@ is_done = False
 
 
 def update_writer_task(done):
-    # print('timer run')
     if done:
         return
     result.write(current_frame)
@@ -143,6 +137,7 @@ while True:
     timer = cv2.getTickCount()  # for fps caculating
     frame = cap.read()[1]
     fnum += 1
+    boxes = []
 
     if (fnum % sampling_rate) == 0:
         # run detection model
@@ -179,29 +174,30 @@ while True:
             rois += [roi]
             ims += [im]
 
+        boxes = rois
         if len(ims) > 0:
-            y_preds = model2.predict(np.concatenate(ims, axis=0), verbose=0)
+            y_preds = model2.predict(np.stack(ims, axis=0), verbose=0)
             cls_preds = y_preds.argmax(-1)
 
-            for roi in rois:
-                tracker = OPENCV_OBJECT_TRACKERS["kcf"]()
-                trackers.add(tracker, frame, tuple(roi))
+            # for roi in rois:
+            #     tracker = OPENCV_OBJECT_TRACKERS["kcf"]()
+            #     trackers.add(tracker, frame, tuple(roi))
 
             label = cls_preds
 
     if frame is None:
         break
 
-    (success, boxes) = trackers.update(frame)
-    # loop over the bounding boxes and draw then on the frame
-    if success == False:
-        bound_boxes = trackers.getObjects()
-        idx = np.where(bound_boxes.sum(axis=1) != 0)[0]
-        bound_boxes = bound_boxes[idx]
-        trackers = cv2.legacy.MultiTracker_create()
-        for bound_box in bound_boxes:
-            trackers.add(tracker, frame, bound_box)
-        continue
+    # (success, boxes) = trackers.update(frame)
+    # # loop over the bounding boxes and draw then on the frame
+    # if success == False:
+    #     bound_boxes = trackers.getObjects()
+    #     idx = np.where(bound_boxes.sum(axis=1) != 0)[0]
+    #     bound_boxes = bound_boxes[idx]
+    #     trackers = cv2.legacy.MultiTracker_create()
+    #     for bound_box in bound_boxes:
+    #         trackers.add(tracker, frame, bound_box)
+    #     continue
 
     # put bounding box
     for i, box in enumerate(boxes):
@@ -222,20 +218,18 @@ while True:
     if fnum == 1:
         avgfps = fps
     else:
-        avgfps = (avgfps + fps) / 2
+        avgfps = 0.9 * avgfps + 0.1 * fps
 
     cv2.putText(
         frame,
-        "fps: " + str(int(avgfps)),
+        "fps: {:4d}".format(int(avgfps)),
         (75, 50),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
         (0, 0, 255),
         2,
     )
-    # cv2.imshow('Frame', frame)
     current_frame = frame
-    # print(f'fps: {avgfps}')
 
     if k == ord("q"):
         cap.release()
