@@ -1,4 +1,3 @@
-import math
 from threading import Timer
 from time import sleep
 
@@ -45,15 +44,49 @@ def relu(x):
     return x * (x > 0)
 
 
-def pytago(width, height):
-    return math.floor(math.sqrt(width * width + height * height))
-
-
 # video link: https://drive.google.com/file/d/16PClrGCJGV-aSrjevYHA_htyzg2QC49x/view?usp=sharing
 cap = cv2.VideoCapture("Germany_480p.mp4")  # from video
 # cap = cv2.VideoCapture(0)  #from camera
-model1 = YOLO("Yolov8n.pt")  # load detection model
-model2 = load_model("LeNet.h5")  # load classification model
+model1 = YOLO(
+    "/kaggle/input/models1/Manual yolov8n2.pt"
+)  # load detection model
+model2 = load_model(
+    "/kaggle/input/models1/manual LeNet4 (no pre).h5"
+)  # load classification model
+
+ano = [
+    "Do not enter",
+    "No stopping or parking",
+    "No parking",
+    "Maximum speed 40 km/h",
+    "Maximum speed 50 km/h",
+    "Maximum speed 60 km/h",
+    "Maximum speed 70 km/h",
+    "Maximum speed 80 km/h",
+    "No right turn",
+    "No left turn",
+    "Keep right",
+    "No 2 & 3 wheel vehicles",
+    "Roundabout ahead",
+    "No cars",
+    "No U-turn",
+    "No buses",
+    "Bus stop",
+    "No motorcycles",
+    "Height restriction",
+    "No heavy vehicles",
+    "Left road junction with priority",
+    "Right road junction with priority",
+    "Zebra crossing / crosswalk ahead",
+    "Traffic obstruction ahead - may pass on either side",
+    "Slow down",
+    "School zone ahead",
+    "Road narrows ahead on the left side",
+    "No trailers",
+    "Hospital nearby",
+    "null",
+]
+
 
 print("model loaded")
 
@@ -176,7 +209,7 @@ while True:
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         cv2.putText(
             frame,
-            str(label[i]),
+            str(ano[label[i]]),
             (x + 10, y - 3),
             cv2.FONT_HERSHEY_PLAIN,
             1.5,
