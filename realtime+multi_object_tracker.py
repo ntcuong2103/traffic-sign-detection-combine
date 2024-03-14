@@ -102,7 +102,9 @@ trackers = cv2.legacy.MultiTracker_create()
 label = np.array([], dtype=int)
 fnum = 0  # frame .no
 avgfps = 0
-sampling_rate = 1
+sampling_rate = 5
+average_windows = 10
+elapsed_time = 0
 
 frame = cap.read()[1]
 fnum += 1
@@ -132,12 +134,18 @@ capture_timer = Timer(float(1) / 60, update_writer_task, args=[is_done])
 capture_timer.start()
 
 sleep(0.1)
+from tqdm import tqdm
 
+progress = tqdm()
 while True:
     timer = cv2.getTickCount()  # for fps caculating
     frame = cap.read()[1]
     fnum += 1
     boxes = []
+    if frame is None:
+        break
+
+    progress.update()
 
     if (fnum % sampling_rate) == 0:
         # run detection model
@@ -179,25 +187,27 @@ while True:
             y_preds = model2.predict(np.stack(ims, axis=0), verbose=0)
             cls_preds = y_preds.argmax(-1)
 
-            # for roi in rois:
-            #     tracker = OPENCV_OBJECT_TRACKERS["kcf"]()
-            #     trackers.add(tracker, frame, tuple(roi))
+            for roi in rois:
+                tracker = OPENCV_OBJECT_TRACKERS["kcf"]()
+                trackers.add(tracker, frame, tuple(roi))
 
             label = cls_preds
 
-    if frame is None:
-        break
+    (success, boxes) = trackers.update(frame)
+    # loop over the bounding boxes and draw then on the frame
+    if success == False:
+        bound_boxes = trackers.getObjects()
+        idx = np.where(bound_boxes.sum(axis=1) != 0)[0]
+        bound_boxes = bound_boxes[idx]
+        trackers = cv2.legacy.MultiTracker_create()
+        for bound_box in bound_boxes:
+            trackers.add(tracker, frame, bound_box)
+        continue
 
-    # (success, boxes) = trackers.update(frame)
-    # # loop over the bounding boxes and draw then on the frame
-    # if success == False:
-    #     bound_boxes = trackers.getObjects()
-    #     idx = np.where(bound_boxes.sum(axis=1) != 0)[0]
-    #     bound_boxes = bound_boxes[idx]
-    #     trackers = cv2.legacy.MultiTracker_create()
-    #     for bound_box in bound_boxes:
-    #         trackers.add(tracker, frame, bound_box)
-    #     continue
+    elapsed_time += (cv2.getTickCount() - timer) / cv2.getTickFrequency()
+    if fnum % average_windows == 0:
+        avgfps = average_windows / elapsed_time
+        elapsed_time = 0
 
     # put bounding box
     for i, box in enumerate(boxes):
@@ -212,13 +222,6 @@ while True:
             (255, 255, 0),
             2,
         )
-    k = cv2.waitKey(1)
-    # caculate fps
-    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer)
-    if fnum == 1:
-        avgfps = fps
-    else:
-        avgfps = 0.9 * avgfps + 0.1 * fps
 
     cv2.putText(
         frame,
@@ -231,6 +234,7 @@ while True:
     )
     current_frame = frame
 
+    k = cv2.waitKey(1)
     if k == ord("q"):
         cap.release()
         cv2.destroyAllWindows()
